@@ -10,6 +10,7 @@ include(CTest)
 # --------------------
 option(ENABLE_CXX "Enable the C++ wrapper library" ON)
 option(ENABLE_PYTHON "Enable the Python wrapper library" OFF)
+option(ENABLE_LUA "Enable the Lua binding library" OFF)
 
 include(CMakeLists.txt.local OPTIONAL)
 include(GenerateExportHeader)
@@ -120,6 +121,10 @@ endif(ENABLE_CXX)
 if(ENABLE_PYTHON)
     add_subdirectory(bindings/python/)
 endif (ENABLE_PYTHON)
+
+if(ENABLE_LUA)
+    add_subdirectory(bindings/lua/)
+endif(ENABLE_LUA)
 
 # Install rules
 # -------------
