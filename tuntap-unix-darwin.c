@@ -18,10 +18,12 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/errno.h>
 
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <net/if_types.h>
+#include <net/if_utun.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 
@@ -36,13 +38,57 @@
 #include "tuntap.h"
 #include "private.h"
 
+#include <sys/kern_control.h>
+#include <sys/sys_domain.h>
+#include <sys/kern_event.h>
+
+static int
+tuntap_utun_open(char * ifname, uint32_t namesz, int num)
+{
+	int fd;
+	struct sockaddr_ctl addr = { 0 };
+	struct ctl_info info = { 0 };
+
+	if (-1 == (fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL))) {
+		tuntap_log(TUNTAP_LOG_ERR, "utun is not supported");
+		return -1;
+	}
+
+	strncpy(info.ctl_name, UTUN_CONTROL_NAME, sizeof(info.ctl_name));
+
+	if (ioctl(fd, CTLIOCGINFO, &info) < 0) {
+		tuntap_log(TUNTAP_LOG_ERR, "Can't retrieve kernel control id");
+		tuntap_log(TUNTAP_LOG_ERR, strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	addr.sc_id = info.ctl_id;
+	addr.sc_len = sizeof(addr);
+	addr.sc_family = AF_SYSTEM;
+	addr.ss_sysaddr = AF_SYS_CONTROL;
+	addr.sc_unit = num + 1;   /* utunX where X is sc.sc_unit -1
+		                     sc.sc_unit be 0 when TUNTAP_ID_ANY */
+
+	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		tuntap_log(TUNTAP_LOG_ERR, strerror(errno));
+		tuntap_log(TUNTAP_LOG_ERR, "utun interface probably already in use");
+		close(fd);
+		return -1;
+	}
+
+	if (getsockopt(fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifname, &namesz) < 0) {
+		tuntap_log(TUNTAP_LOG_ERR, "Can't retrieve utun name");
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
 int
 tuntap_sys_start(struct device *dev, int mode, int tun) {
-	struct ifreq ifr;
-	struct ifaddrs *ifa;
 	char name[MAXPATHLEN];
 	int fd;
-	char *type;
 
 	fd = -1;
 
@@ -53,36 +99,29 @@ tuntap_sys_start(struct device *dev, int mode, int tun) {
 		return -1;
 	}
 
-        /* Set the mode: tun or tap */
 	if (mode == TUNTAP_MODE_ETHERNET) {
-		type = "tap";
-		ifr.ifr_flags |= IFF_LINK0;
-	}
-	else if (mode == TUNTAP_MODE_TUNNEL) {
-		type = "tun";
-		ifr.ifr_flags &= ~IFF_LINK0;
-	}
-	else {
-		tuntap_log(TUNTAP_LOG_ERR, "Invalid parameter 'mode'");
+		tuntap_log(TUNTAP_LOG_NOTICE,
+		    "Your system does not support tap device");
 		return -1;
 	}
 
-	/* Try to use the given driver or loop throught the avaible ones */
-	if (tun < TUNTAP_ID_MAX) {
-		(void)snprintf(name, sizeof name, "/dev/%s%i", type, tun);
-		fd = open(name, O_RDWR);
-	} else if (tun == TUNTAP_ID_ANY) {
-		for (tun = 0; tun < TUNTAP_ID_MAX; ++tun) {
-			(void)memset(name, '\0', sizeof name);
-			(void)snprintf(name, sizeof name, "/dev/%s%i",
-			    type, tun);
-			if ((fd = open(name, O_RDWR)) > 0)
-				break;
-		}
-	} else {
-		tuntap_log(TUNTAP_LOG_ERR, "Invalid parameter 'tun'");
+        /* Check the mode: tun */
+	if (mode != TUNTAP_MODE_TUNNEL) {
+		tuntap_log(TUNTAP_LOG_ERR, "Invalid parameter 'mode'");
 		return -1;
 	}
+	/* Check tun number */
+	if (tun < 0 || tun > TUNTAP_ID_ANY) {
+		tuntap_log(TUNTAP_LOG_ERR, "Invalid parameter 'unit'");
+		return -1;
+	}
+
+	fd = tuntap_utun_open(name, IFNAMSIZ,
+				(tun == TUNTAP_ID_ANY ? -1 : tun));
+	if (fd != -1)
+		strlcpy(dev->if_name, name, sizeof dev->if_name);
+
+	/* Try to use the given driver or loop throught the avaible ones */
 	switch (fd) {
 	case -1:
 		tuntap_log(TUNTAP_LOG_ERR, "Permission denied");
@@ -95,58 +134,6 @@ tuntap_sys_start(struct device *dev, int mode, int tun) {
 		break;
 	}
 
-	/* Set the interface name */
-	(void)memset(&ifr, '\0', sizeof ifr);
-	(void)snprintf(ifr.ifr_name, sizeof ifr.ifr_name, "%s%i", type, tun);
-	/* And save it */
-	(void)strlcpy(dev->if_name, ifr.ifr_name, sizeof dev->if_name);
-
-	/* Get the interface default values */
-	if (ioctl(dev->ctrl_sock, SIOCGIFFLAGS, &ifr) == -1) {
-		tuntap_log(TUNTAP_LOG_ERR, "Can't get interface values");
-		return -1;
-	}
-
-	/* Set our modifications */
-	if (ioctl(dev->ctrl_sock, SIOCSIFFLAGS, &ifr) == -1) {
-		tuntap_log(TUNTAP_LOG_ERR, "Can't set interface values");
-		return -1;
-	}
-
-	/* Save flags for tuntap_{up, down} */
-	dev->flags = ifr.ifr_flags;
-
-	/* Save pre-existing MAC address */
-	if (mode == TUNTAP_MODE_ETHERNET && getifaddrs(&ifa) == 0) {
-		struct ifaddrs *pifa;
-
-		for (pifa = ifa; pifa != NULL; pifa = pifa->ifa_next) {
-			if (strcmp(pifa->ifa_name, dev->if_name) == 0) {
-				struct ether_addr eth_addr;
-
-				/*
-				 * The MAC address is from 10 to 15.
-				 *
-				 * And yes, I know, the buffer is supposed
-				 * to have a size of 14 bytes.
-				 */
-				(void)memcpy(dev->hwaddr,
-				  pifa->ifa_addr->sa_data + 10,
-				  ETHER_ADDR_LEN);
-
-				(void)memset(&eth_addr.ether_addr_octet, 0,
-				  ETHER_ADDR_LEN);
-				(void)memcpy(&eth_addr.ether_addr_octet,
-				  pifa->ifa_addr->sa_data + 10,
-				  ETHER_ADDR_LEN);
-				break;
-			}
-		}
-		if (pifa == NULL)
-			tuntap_log(TUNTAP_LOG_WARN,
-			    "Can't get link-layer address");
-		freeifaddrs(ifa);
-	}
 	return fd;
 }
 
