@@ -242,9 +242,51 @@ static int ltuntap_new(lua_State* L)
     return 1;
 }
 
+static lua_State* _GL = NULL;
+static void ltuntap_log(int level, const char *msg) {
+    lua_State *L = _GL;
+    if (L == NULL)
+        return;
+
+    lua_pushlightuserdata(L, ltuntap_log);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    if (lua_isfunction(L, -1))
+    {
+        lua_pushinteger(L, level);
+        lua_pushstring(L, msg);
+
+        if( lua_pcall(L, 2, 0, 0) == LUA_OK )
+            return;
+        lua_error(L);
+    }
+    lua_pop(L, 1);
+}
+
+static int ltuntap_log_set(lua_State *L)
+{
+    int type = lua_type(L, 1);
+    if ( type == LUA_TFUNCTION )
+    {
+        lua_pushlightuserdata(L, ltuntap_log);
+        lua_pushvalue(L, 1);
+        lua_rawset(L, LUA_REGISTRYINDEX);
+        _GL = L;
+        tuntap_log_set_cb(ltuntap_log);
+    } else if(type == LUA_TNONE || type == LUA_TNIL)
+    {
+        _GL = NULL;
+        tuntap_log_set_cb(NULL);
+    }else
+        luaL_error(L, "only accpet a function or nil value to set or remove log callback");
+
+    return 0;
+}
+
+
 static const luaL_Reg ltunlib[] = {
     {"version",   ltuntap_version},
     {"new",       ltuntap_new},
+    {"log_set",   ltuntap_log_set},
 
     {"destroy",   ltuntap_destroy},
     {"release",   ltuntap_release},
