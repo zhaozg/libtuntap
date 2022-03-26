@@ -46,7 +46,8 @@ tuntap_init(void) {
 	dev->ctrl_sock = -1;
 	dev->flags = 0;
 
-	tuntap_log = tuntap_log_default;
+	if (tuntap_log == NULL)
+		tuntap_log = tuntap_log_default;
 	return dev;
 }
 
