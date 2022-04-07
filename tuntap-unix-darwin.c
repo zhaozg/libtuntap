@@ -199,6 +199,27 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s4, uint32_t bits) {
 }
 
 int
+tuntap_sys_set_dstipv4(struct device *dev, t_tun_in_addr *s4) {
+	struct ifaliasreq ifa;
+	struct sockaddr_in addr;
+
+	(void)memset(&ifa, '\0', sizeof ifa);
+	(void)strlcpy(ifa.ifra_name, dev->if_name, sizeof ifa.ifra_name);
+
+	(void)memset(&addr, '\0', sizeof addr);
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = s4->s_addr;
+	addr.sin_len = sizeof addr;
+	(void)memcpy(&ifa.ifra_addr, &addr, sizeof addr);
+
+	if (ioctl(dev->ctrl_sock, SIOCSIFDSTADDR, &ifa) == -1) {
+		tuntap_log(TUNTAP_LOG_ERR, "Can't set destination IP");
+		return -1;
+	}
+	return 0;
+}
+
+int
 tuntap_sys_set_descr(struct device *dev, const char *descr, size_t len) {
 	tuntap_log(TUNTAP_LOG_NOTICE,
 	    "Your system does not support tuntap_set_descr()");

@@ -57,11 +57,11 @@ formated_error(LPWSTR pMessage, DWORD m, ...) {
 
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_ALLOCATE_BUFFER,
-                  pMessage, 
+                  pMessage,
                   m,
                   0,
-                  (LPSTR)&pBuffer, 
-                  0, 
+                  (LPSTR)&pBuffer,
+                  0,
                   &args);
 
     va_end(args);
@@ -106,7 +106,7 @@ reg_query(char *key_name) {
 		if (ret != ERROR_SUCCESS) {
 			continue;
 		}
-		
+
 		/* Append it to NETWORK_ADAPTERS and open it */
 		snprintf(new_key, sizeof new_key, "%s\\%s", key_name, key);
 		ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT(new_key), 0, KEY_READ, &adapter);
@@ -160,7 +160,7 @@ tuntap_start(struct device *dev, int mode, int tun) {
 
 	/* Shift the persistence bit */
 	if (mode & TUNTAP_MODE_PERSIST) {
-		mode &= ~TUNTAP_MODE_PERSIST; 
+		mode &= ~TUNTAP_MODE_PERSIST;
 	}
 
 	if (mode == TUNTAP_MODE_TUNNEL) {
@@ -204,7 +204,7 @@ tuntap_get_hwaddr(struct device *dev) {
 		return NULL;
     } else {
 		char buf[128];
-	
+
 		(void)_snprintf_s(buf, sizeof buf, sizeof buf, "MAC address: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
 			hwaddr[0],hwaddr[1],hwaddr[2],hwaddr[3],hwaddr[4],hwaddr[5]);
 		tuntap_log(TUNTAP_LOG_DEBUG, buf);
@@ -280,7 +280,7 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s, uint32_t mask) {
 	DWORD len;
 
 	/* Address + Netmask */
-	psock[0] = s->S_un.S_addr; 
+	psock[0] = s->S_un.S_addr;
 	psock[1] = mask;
 	/* DHCP server address (We don't want it) */
 	psock[2] = 0;
@@ -297,11 +297,27 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s, uint32_t mask) {
 }
 
 int
+tuntap_sys_set_dstipv4(struct device *dev, t_tun_in_addr *s) {
+	(void)dev;
+	(void)s;
+	tuntap_log(TUNTAP_LOG_NOTICE, "Your system does not support tuntap_sys_set_dstipv4()");
+	return -1;
+}
+
+int
 tuntap_sys_set_ipv6(struct device *dev, t_tun_in6_addr *s, uint32_t mask) {
 	(void)dev;
 	(void)s;
 	(void)mask;
 	tuntap_log(TUNTAP_LOG_NOTICE, "Your system does not support tuntap_sys_set_ipv6()");
+	return -1;
+}
+
+int
+tuntap_sys_set_dstipv6(struct device *dev, t_tun_in6_addr *s) {
+	(void)dev;
+	(void)s;
+	tuntap_log(TUNTAP_LOG_NOTICE, "Your system does not support tuntap_sys_set_dstipv6()");
 	return -1;
 }
 

@@ -194,6 +194,9 @@ static int ltuntap_set(lua_State* L)
         i = luaL_checkint(L, 4);
         /* set ipaddr and netmask */
         i = tuntap_set_ip(ltuntap, val, i);
+    } else if (strcmp(key, "dstip") == 0) {
+        val = luaL_checkstring(L, 3);
+        i = tuntap_set_dstip(ltuntap, val);
     }
 
     if (i==-1) return ltuntap_pushresult(L, i);

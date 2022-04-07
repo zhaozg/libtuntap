@@ -169,7 +169,7 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s4, uint32_t bits) {
 		tuntap_log(TUNTAP_LOG_ERR, "Can't set IP address");
 		return -1;
 	}
-	
+
 	/* Reinit the struct ifr */
 	(void)memset(&ifr.ifr_addr, '\0', sizeof ifr.ifr_addr);
 
@@ -187,10 +187,38 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s4, uint32_t bits) {
 }
 
 int
+tuntap_sys_set_dstipv4(struct device *dev, t_tun_in_addr *s4) {
+	struct ifreq ifr;
+	struct sockaddr_in mask;
+
+	(void)memset(&ifr, '\0', sizeof ifr);
+	(void)memcpy(ifr.ifr_name, dev->if_name, sizeof dev->if_name);
+
+	/* Set the IP address first */
+	(void)memcpy(&(((struct sockaddr_in *)&ifr.ifr_dstaddr )->sin_addr),
+      s4, sizeof(struct in_addr));
+    ifr.ifr_addr.sa_family = AF_INET;
+	if (ioctl(dev->ctrl_sock, SIOCSIFADDR, &ifr) == -1) {
+		tuntap_log(TUNTAP_LOG_ERR, "Can't set IP address");
+		return -1;
+	}
+
+	return 0;
+}
+
+int
 tuntap_sys_set_ipv6(struct device *dev, t_tun_in6_addr *s6, uint32_t bits) {
 	(void)dev;
 	(void)s6;
 	(void)bits;
+	tuntap_log(TUNTAP_LOG_NOTICE, "IPv6 is not implemented on your system");
+	return -1;
+}
+
+int
+tuntap_sys_set_dstipv6(struct device *dev, t_tun_in6_addr *s6) {
+	(void)dev;
+	(void)s6;
 	tuntap_log(TUNTAP_LOG_NOTICE, "IPv6 is not implemented on your system");
 	return -1;
 }

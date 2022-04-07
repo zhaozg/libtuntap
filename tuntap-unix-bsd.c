@@ -35,6 +35,14 @@ tuntap_sys_set_ipv6(struct device *dev, t_tun_in6_addr *s6, uint32_t bits) {
 }
 
 int
+tuntap_sys_set_dstipv6(struct device *dev, t_tun_in6_addr *s6) {
+	(void)dev;
+	(void)s6;
+	tuntap_log(TUNTAP_LOG_NOTICE, "IPv6 is not implemented on your system");
+	return -1;
+}
+
+int
 tuntap_sys_set_ifname(struct device *dev, const char *ifname, size_t len) {
 	(void)dev;
 	(void)ifname;

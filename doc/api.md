@@ -20,7 +20,7 @@ Error levels are described later, they are macros in the form `TUNTAP_LOG_*`.
 
 The `t_tun` type map the file descriptor type of a given operating system.
 
-Typically it's an `int` on UNIXes and a `HANDLE` on Windows. 
+Typically it's an `int` on UNIXes and a `HANDLE` on Windows.
 
 ## Macros
 
@@ -199,6 +199,11 @@ This function replaces the MTU of the interface described by `dev` with the give
     int tuntap_set_ip(struct device *dev, const char *addr, int netmask);
 
 This function replaces the IP address of the interface described by `dev` with the given address `addr` and `netmask`.
+### tuntap_set_dstip
+
+    int tuntap_set_dstip(struct device *dev, const char *addr);
+
+This function replaces the destination IP address of the interface described by `dev` with the given address `addr`.
 
 ### tuntap_read
 

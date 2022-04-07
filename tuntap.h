@@ -72,6 +72,7 @@ TUNTAP_EXPORT int		 tuntap_down(struct device *);
 TUNTAP_EXPORT int		 tuntap_get_mtu(struct device *);
 TUNTAP_EXPORT int		 tuntap_set_mtu(struct device *, int);
 TUNTAP_EXPORT int		 tuntap_set_ip(struct device *, const char *, int);
+TUNTAP_EXPORT int		 tuntap_set_dstip(struct device *, const char *);
 TUNTAP_EXPORT int		 tuntap_read(struct device *, void *, size_t);
 TUNTAP_EXPORT int		 tuntap_write(struct device *, void *, size_t);
 TUNTAP_EXPORT int		 tuntap_get_readable(struct device *);

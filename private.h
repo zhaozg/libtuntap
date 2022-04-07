@@ -54,7 +54,7 @@
 # if defined ETH_ALEN /* Linux */
 #  define ETHER_ADDR_LEN ETH_ALEN
 # elif defined Windows
-#  define ETHER_ADDR_LEN 6 
+#  define ETHER_ADDR_LEN 6
 # endif
 
 # if defined IFDESCRSIZE
@@ -116,6 +116,8 @@ void	 tuntap_sys_destroy(struct device *);
 int	 tuntap_sys_set_hwaddr(struct device *, struct ether_addr *);
 int	 tuntap_sys_set_ipv4(struct device *, t_tun_in_addr *, uint32_t);
 int	 tuntap_sys_set_ipv6(struct device *, t_tun_in6_addr *, uint32_t);
+int	 tuntap_sys_set_dstipv4(struct device *, t_tun_in_addr *);
+int	 tuntap_sys_set_dstipv6(struct device *, t_tun_in6_addr *);
 int	 tuntap_sys_set_ifname(struct device *, const char *, size_t);
 int	 tuntap_sys_set_descr(struct device *, const char *, size_t);
 char	*tuntap_sys_get_descr(struct device *);
