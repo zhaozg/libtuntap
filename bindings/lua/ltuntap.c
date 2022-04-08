@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 
 #if LUA_VERSION_NUM == 501 && !defined(luaL_newlib)
 
@@ -62,15 +63,27 @@ typedef struct device tuntap_t;
 
 static int ltuntap_read(lua_State* L)
 {
-    char buf[2048];
+    int ret = 0;
+
+    unsigned char buf[2048];
+    unsigned char* p = buf;
+
     tuntap_t* ltuntap = CHECK_TUNTAP(1);
-    size_t len = luaL_optint(L, 2, sizeof(buf));
+    size_t len = luaL_optint(L, 2, tuntap_get_readable(ltuntap));
 
-    int ret = tuntap_read(ltuntap, buf, len);
-    if (ret==-1) return ltuntap_pushresult(L, ret);
+    if (len > sizeof(buf)) p = malloc(len);
 
-    lua_pushlstring(L, buf, ret);
-    return 1;
+    ret = tuntap_read(ltuntap, p, len);
+    if (ret == -1)
+        ret = ltuntap_pushresult(L, ret);
+    else
+    {
+        lua_pushlstring(L, (const char*)p, ret);
+        ret = 1;
+    }
+
+    if (p!=buf) free(p);
+    return ret;
 }
 
 static int ltuntap_write(lua_State* L)
