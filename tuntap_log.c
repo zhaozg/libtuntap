@@ -15,13 +15,19 @@
  * PERFORMANCE OF THIS SOFTWARE.
 **/
 
+#if defined(_WIN32) && !defined(Windows)
+#define Windows
+#endif
+
 #if defined Windows
+# include <Winsock2.h>
 # include <windows.h>
 #endif
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "tuntap.h"
 #include "private.h"

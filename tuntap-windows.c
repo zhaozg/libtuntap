@@ -13,15 +13,21 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef Windows
+#define Windows
+#endif
 
 #include <sys/types.h>
 
+#include <Winsock2.h>
 #include <windows.h>
+#include <winioctl.h>
+#include <Inaddr.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <strsafe.h>
 
 #include "tuntap.h"
 #include "private.h"
@@ -43,6 +49,7 @@
 #define MAX_KEY_LENGTH 255
 #define MAX_VALUE_NAME 16383
 #define NETWORK_ADAPTERS "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
+#define NETWORK_CONNECTIONS "SYSTEM\\CurrentControlSet\\Control\\Network\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
 
 /* From OpenVPN tap driver, proto.h */
 typedef unsigned long IPADDR;
@@ -95,7 +102,7 @@ reg_query(char *key_name) {
 	}
 
 	/* Walk througt all adapters */
-    for (i = 0; i < sub_keys; i++) {
+	for (i = 0; i < sub_keys; i++) {
 		char new_key[MAX_KEY_LENGTH];
 		char data[256];
 		TCHAR key[MAX_KEY_LENGTH];
@@ -147,11 +154,39 @@ tuntap_sys_destroy(struct device *dev) {
 	return;
 }
 
+DWORD get_if_name(const char *if_deviceid, char *if_name, size_t name_len)
+{
+	HKEY key;
+	DWORD ret = 0;
+
+	char regpath[MAX_KEY_LENGTH];
+
+	snprintf(regpath, MAX_KEY_LENGTH, "%s\\%s\\Connection", NETWORK_CONNECTIONS, if_deviceid);
+
+	ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT(regpath), 0, KEY_READ, &key);
+
+	if (ret != ERROR_SUCCESS) {
+		RegCloseKey(key);
+		return ret;
+	}
+
+	ret = RegQueryValueEx(key, "Name", 0, 0, if_name, &name_len);
+
+	if (ret != ERROR_SUCCESS) {
+		RegCloseKey(key);
+		return ret;
+	}
+
+	RegCloseKey(key);
+	return ret;
+}
+
 int
 tuntap_start(struct device *dev, int mode, int tun) {
 	HANDLE tun_fd;
 	char *deviceid;
 	char buf[60];
+	DWORD errcode;
 
 	/* Don't re-initialise a previously started device */
 	if (dev->tun_fd != TUNFD_INVALID_VALUE) {
@@ -162,7 +197,7 @@ tuntap_start(struct device *dev, int mode, int tun) {
 	if (mode & TUNTAP_MODE_PERSIST) {
 		mode &= ~TUNTAP_MODE_PERSIST;
 	}
-
+/*
 	if (mode == TUNTAP_MODE_TUNNEL) {
 		tuntap_log(TUNTAP_LOG_NOTICE, "Layer 3 tunneling is not implemented");
 		return -1;
@@ -171,14 +206,23 @@ tuntap_start(struct device *dev, int mode, int tun) {
 		tuntap_log(TUNTAP_LOG_ERR, "Invalid parameter 'mode'");
 		return -1;
 	}
+*/
+	dev->flags = mode;
 
 	deviceid = reg_query(NETWORK_ADAPTERS);
 	snprintf(buf, sizeof buf, "\\\\.\\Global\\%s.tap", deviceid);
 	tun_fd = CreateFile(buf, GENERIC_WRITE | GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_SYSTEM|FILE_FLAG_OVERLAPPED, 0);
 	if (tun_fd == TUNFD_INVALID_VALUE) {
-		int errcode = GetLastError();
+		errcode = GetLastError();
 
 		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
+		return -1;
+	}
+
+	errcode = get_if_name(deviceid, dev->if_name, sizeof(dev->if_name));
+	if (errcode)
+	{
+		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(":%1%0", errcode));
 		return -1;
 	}
 
@@ -197,12 +241,12 @@ tuntap_get_hwaddr(struct device *dev) {
 	static unsigned char hwaddr[ETHER_ADDR_LEN];
 	DWORD len;
 
-    if (DeviceIoControl(dev->tun_fd, TAP_IOCTL_GET_MAC, &hwaddr, sizeof(hwaddr), &hwaddr, sizeof(hwaddr), &len, NULL) == 0) {
+	if (DeviceIoControl(dev->tun_fd, TAP_IOCTL_GET_MAC, &hwaddr, sizeof(hwaddr), &hwaddr, sizeof(hwaddr), &len, NULL) == 0) {
 		int errcode = GetLastError();
 
 		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
 		return NULL;
-    } else {
+	} else {
 		char buf[128];
 
 		(void)_snprintf_s(buf, sizeof buf, sizeof buf, "MAC address: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
@@ -227,7 +271,7 @@ tuntap_sys_set_updown(struct device *dev, ULONG flag) {
 
 		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
 		return -1;
-    } else {
+	} else {
 		char buf[32];
 
 		(void)_snprintf_s(buf, sizeof buf, sizeof buf, "Status: %s", flag ? "Up" : "Down");
@@ -262,7 +306,7 @@ tuntap_get_mtu(struct device *dev) {
 
 		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
 		return -1;
-    }
+	}
 	return 0;
 }
 
@@ -279,6 +323,7 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s, uint32_t mask) {
 	IPADDR psock[4];
 	DWORD len;
 
+	if (dev->flags == TUNTAP_MODE_ETHERNET) {
 	/* Address + Netmask */
 	psock[0] = s->S_un.S_addr;
 	psock[1] = mask;
@@ -292,7 +337,19 @@ tuntap_sys_set_ipv4(struct device *dev, t_tun_in_addr *s, uint32_t mask) {
 
 		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
 		return -1;
-    }
+	}
+	} else {
+	psock[0] = s->S_un.S_addr;
+	psock[1] = s->S_un.S_addr & mask;
+	psock[2] = mask;
+
+	if (DeviceIoControl(dev->tun_fd, TAP_IOCTL_CONFIG_TUN, &psock, sizeof(IPADDR)*3, &psock, sizeof(psock), &len, NULL) == 0) {
+		int errcode = GetLastError();
+
+		tuntap_log(TUNTAP_LOG_ERR, (const char *)formated_error(L"%1%0", errcode));
+		return -1;
+	}
+	}
 	return 0;
 }
 
