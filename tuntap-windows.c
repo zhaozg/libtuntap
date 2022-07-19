@@ -54,26 +54,35 @@
 /* From OpenVPN tap driver, proto.h */
 typedef unsigned long IPADDR;
 
+static LPSTR
+WcharToUtf8(LPCWSTR szUnicode)
+{
+	int ALength = WideCharToMultiByte(CP_UTF8, 0, szUnicode, -1, NULL, 0, NULL, NULL);
+	LPSTR pszA = (LPSTR)malloc(ALength + 1);
+	WideCharToMultiByte(CP_UTF8, 0, szUnicode, -1, pszA, ALength, NULL, NULL);
+	pszA[ALength] = 0;
+
+	return pszA;
+}
+
 /* This one is from Fabien Pichot, in the tNETacle source code */
-static LPWSTR
+static LPSTR
 formated_error(LPWSTR pMessage, DWORD m, ...) {
-    LPWSTR pBuffer = NULL;
+    wchar_t Buffer[256] = {0};
 
     va_list args = NULL;
     va_start(args, pMessage);
 
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_ALLOCATE_BUFFER,
-                  pMessage,
-                  m,
-                  0,
-                  (LPSTR)&pBuffer,
-                  0,
-                  &args);
+    FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM,
+                   pMessage,
+                   m,
+                   0,
+                   Buffer,
+                   sizeof(Buffer),
+                   &args);
 
     va_end(args);
-
-    return pBuffer;
+    return WcharToUtf8(Buffer);
 }
 
 /* TODO: Rework to be more generic and allow arbitrary key modification (MTU and stuff) */
