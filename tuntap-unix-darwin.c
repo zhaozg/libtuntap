@@ -221,6 +221,9 @@ tuntap_sys_set_dstipv4(struct device *dev, t_tun_in_addr *s4) {
 
 int
 tuntap_sys_set_descr(struct device *dev, const char *descr, size_t len) {
+	(void)dev;
+	(void)descr;
+	(void)len;
 	tuntap_log(TUNTAP_LOG_NOTICE,
 	    "Your system does not support tuntap_set_descr()");
 	return -1;

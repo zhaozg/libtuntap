@@ -50,7 +50,7 @@ tuntap_start(struct device *dev, int mode, int tun) {
 	int fd;
 
 	fd = sock = -1;
-	
+
 	/* Don't re-initialise a previously started device */
 	if (dev->tun_fd != -1) {
 		tuntap_log(TUNTAP_LOG_ERR, "Device is already started");
@@ -350,6 +350,7 @@ tuntap_set_debug(struct device *dev, int set) {
 	}
 	return 0;
 #else
+	(void)set;
 	tuntap_log(TUNTAP_LOG_NOTICE,
 	    "Your system does not support tuntap_set_debug()");
 	return -1;
