@@ -166,7 +166,11 @@ static int ltuntap_get(lua_State* L)
     } else if (strcmp(key, "mtu") == 0) {
         lua_pushinteger(L, tuntap_get_mtu(ltuntap));
     } else if (strcmp(key, "fd") == 0) {
+#ifdef WIN32
+        lua_pushlightuserdata(L, tuntap_get_fd(ltuntap));
+#else
         lua_pushinteger(L, tuntap_get_fd(ltuntap));
+#endif
     } else if (strcmp(key, "readable") == 0) {
         lua_pushinteger(L, tuntap_get_readable(ltuntap));
     } else {
